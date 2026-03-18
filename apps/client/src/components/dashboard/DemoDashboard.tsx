@@ -7,7 +7,9 @@ import { SyncProgress, WS_STATUS_COLORS } from "../ui/SyncProgress";
 import { BeatPill, DemoBeatFlash } from "./BeatFlash";
 import { Bottom } from "./Bottom";
 import { RoomQRCode } from "./CopyRoom";
+import { GlobalVolumeControl } from "./GlobalVolumeControl";
 import { LowPassControl } from "./LowPassControl";
+import { MetronomeButton } from "./Metronome";
 
 const AUDIO_LOADING_RGB = WS_STATUS_COLORS.connecting;
 const AUDIO_LOADED_RGB = WS_STATUS_COLORS.connected;
@@ -98,7 +100,7 @@ export const DemoDashboard = ({ roomId }: DemoDashboardProps) => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Main content: just the user count */}
+          {/* Main content: user count */}
           <div className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <div className="flex items-center gap-3 text-neutral-400">
@@ -135,14 +137,16 @@ export const DemoDashboard = ({ roomId }: DemoDashboardProps) => {
           </div>
 
           {isAdmin && (
-            <>
-              <div className="absolute bottom-28 left-6 right-6 lg:right-auto">
-                <DemoTrackSelector />
+            <div className="shrink-0 px-6 pb-4 flex flex-col gap-3">
+              <DemoTrackSelector />
+              <div className="flex flex-col lg:flex-row gap-3 [&_[data-slot=slider-track]]:before:inset-y-[-16px] [&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:opacity-100">
+                <LowPassControl className="flex-1" isMobile />
+                <GlobalVolumeControl className="flex-1" isMobile />
               </div>
-              <div className="hidden lg:block absolute bottom-28 right-6 w-64">
-                <LowPassControl />
+              <div className="[&_button]:px-4 [&_button]:py-2 [&_button]:text-sm">
+                <MetronomeButton />
               </div>
-            </>
+            </div>
           )}
 
           <Bottom />

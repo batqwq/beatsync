@@ -2,7 +2,7 @@ import { getFilteredOutputLatencyMs, useGlobalStore } from "@/store/global";
 import { epochNow } from "@beatsync/shared";
 import { useEffect, useRef } from "react";
 
-const BPM = 63;
+const BPM = 55;
 const BEAT_INTERVAL_MS = 60000 / BPM;
 const POLL_INTERVAL_MS = 10;
 
