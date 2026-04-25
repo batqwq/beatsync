@@ -25,8 +25,8 @@ export type GetUploadUrlType = z.infer<typeof GetUploadUrlSchema>;
 
 // R2 Upload URL Response - simplified to only essential fields
 export const UploadUrlResponseSchema = z.object({
-  uploadUrl: z.string().url(),
-  publicUrl: z.string().url(),
+  uploadUrl: z.string(),
+  publicUrl: z.string(),
 });
 export type UploadUrlResponseType = z.infer<typeof UploadUrlResponseSchema>;
 
@@ -34,7 +34,7 @@ export type UploadUrlResponseType = z.infer<typeof UploadUrlResponseSchema>;
 export const UploadCompleteSchema = z.object({
   roomId: z.string(),
   originalName: z.string(),
-  publicUrl: z.string().url(),
+  publicUrl: z.string(),
 });
 export type UploadCompleteType = z.infer<typeof UploadCompleteSchema>;
 

@@ -328,14 +328,34 @@ const getSocket = (state: GlobalState) => {
 export const MAX_TRUSTWORTHY_OUTPUT_LATENCY_MS = 250;
 
 /**
+ * Minimum credible output latency for desktop platforms (Windows/Linux).
+ * WASAPI shared-mode on Windows typically adds 40-80 ms, but many browsers
+ * report outputLatency = 0.  When we detect a desktop UA with an implausibly
+ * low value we substitute this floor so auto-compensation still kicks in.
+ */
+const DESKTOP_OUTPUT_LATENCY_FLOOR_MS = 50;
+
+const isDesktopPlatform = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /Windows|Linux|Macintosh/.test(ua) && !/Android/.test(ua);
+};
+
+/**
  * Read the browser's outputLatency, filtering out garbage values (e.g. Bluetooth reporting 648ms).
  * Wired speakers (~24ms) are trustworthy. Bluetooth users should use manual nudge.
+ * On desktop platforms where the browser under-reports (0 ms), fall back to a
+ * sensible floor so that auto-compensation still works out of the box.
  */
 export const getFilteredOutputLatencyMs = (): number => {
   const rawMs = (audioContextManager.getContext().outputLatency ?? 0) * 1000;
   if (rawMs > MAX_TRUSTWORTHY_OUTPUT_LATENCY_MS) {
     console.warn(`[OutputLatency] ignoring ${rawMs.toFixed(0)}ms (likely Bluetooth garbage — use nudge)`);
     return 0;
+  }
+  // Desktop browsers often report 0; use a platform-specific floor
+  if (rawMs < 5 && isDesktopPlatform()) {
+    return DESKTOP_OUTPUT_LATENCY_FLOOR_MS;
   }
   return rawMs;
 };
