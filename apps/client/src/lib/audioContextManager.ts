@@ -1,4 +1,5 @@
 import { LOW_PASS_CONSTANTS } from "@beatsync/shared";
+import NoSleep from "nosleep.js";
 
 /** iOS 18+ uses a non-standard "interrupted" state (e.g. phone call, Siri) */
 export function isAudioContextPaused(state: AudioContextState | string | undefined | null): boolean {
@@ -26,6 +27,7 @@ class AudioContextManager {
   private lowPassFilterNode: BiquadFilterNode | null = null;
   private stateChangeCallback: ((state: AudioContextState) => void) | null = null;
   private wakeLock: WakeLockSentinel | null = null;
+  private noSleep: NoSleep | null = null;
   private hasVisibilityListener = false;
   private silentAudioElement: HTMLAudioElement | null = null;
   private hasRegisteredGestureListeners = false;
@@ -181,6 +183,19 @@ class AudioContextManager {
    * Re-acquires automatically when the page becomes visible again.
    */
   private async requestWakeLock(): Promise<void> {
+    if (!this.noSleep) {
+      this.noSleep = new NoSleep();
+    }
+    
+    if (!this.noSleep.isEnabled) {
+      try {
+        this.noSleep.enable();
+        console.log("[AudioContextManager] NoSleep fallback enabled");
+      } catch (e) {
+        console.warn("[AudioContextManager] Failed to enable NoSleep:", e);
+      }
+    }
+
     if (this.wakeLock) return; // Already held
 
     try {
@@ -207,8 +222,8 @@ class AudioContextManager {
         }
       }
     } catch {
-      // Wake lock request can fail (e.g., low battery, unsupported browser)
-      console.warn("[AudioContextManager] Wake lock not available");
+      // Wake lock request can fail (e.g., low battery, unsupported browser, or HTTP LAN)
+      console.warn("[AudioContextManager] Native wake lock not available or denied");
     }
   }
 
