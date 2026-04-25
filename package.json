@@ -5,6 +5,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "start": "turbo run start",
+    "lan": "powershell -ExecutionPolicy Bypass -File scripts/start-lan.ps1",
     "server": "turbo start --filter=server",
     "client": "turbo start --filter=client",
     "docker:build": "docker build -t beatsync .",

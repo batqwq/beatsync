@@ -30,7 +30,8 @@
     },
     "start": {
       "dependsOn": ["build"],
-      "outputs": [".next/**"]
+      "persistent": true,
+      "cache": false
     },
     "start:log": {
       "dependsOn": ["build"],
