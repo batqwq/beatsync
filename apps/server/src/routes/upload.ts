@@ -91,31 +91,30 @@ function getExtension(name: string): string {
 }
 
 /**
- * Locate the ffmpeg executable. Checks PATH first, then common install locations.
+ * Locate the ffmpeg executable. Checks known absolute paths first,
+ * then falls back to bare "ffmpeg" (requires PATH).
  */
 function findFfmpeg(): string {
-  // Common install locations on Windows (winget, chocolatey, scoop, manual)
-  const candidates = [
-    "ffmpeg", // Try PATH first
+  const { existsSync } = require("fs");
+
+  // Absolute paths to check (winget, chocolatey, scoop)
+  const absoluteCandidates = [
     resolve(process.env.LOCALAPPDATA ?? "", "Microsoft/WinGet/Links/ffmpeg.exe"),
     resolve(process.env.LOCALAPPDATA ?? "", "Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1-full_build/bin/ffmpeg.exe"),
     "C:/ProgramData/chocolatey/bin/ffmpeg.exe",
     resolve(process.env.USERPROFILE ?? "", "scoop/shims/ffmpeg.exe"),
+    "C:/ffmpeg/bin/ffmpeg.exe",
   ];
 
-  for (const candidate of candidates) {
-    try {
-      const result = Bun.spawnSync([candidate, "-version"], { stdout: "pipe", stderr: "pipe" });
-      if (result.exitCode === 0) {
-        console.log(`[ffmpeg] Found at: ${candidate}`);
-        return candidate;
-      }
-    } catch {
-      // Not found at this path, try next
+  for (const candidate of absoluteCandidates) {
+    if (existsSync(candidate)) {
+      console.log(`[ffmpeg] Found at: ${candidate}`);
+      return candidate;
     }
   }
 
-  // Last resort: return "ffmpeg" and hope PATH is updated
+  // Fallback: bare name, relying on PATH
+  console.warn("[ffmpeg] Not found at known locations, falling back to PATH");
   return "ffmpeg";
 }
 
