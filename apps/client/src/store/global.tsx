@@ -325,7 +325,7 @@ const getSocket = (state: GlobalState) => {
   };
 };
 
-export const MAX_TRUSTWORTHY_OUTPUT_LATENCY_MS = 100;
+export const MAX_TRUSTWORTHY_OUTPUT_LATENCY_MS = 250;
 
 /**
  * Read the browser's outputLatency, filtering out garbage values (e.g. Bluetooth reporting 648ms).

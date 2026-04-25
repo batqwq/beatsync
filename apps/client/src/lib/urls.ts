@@ -16,11 +16,16 @@ function resolve(): { apiUrl: string; wsUrl: string } {
   if (envApi && envWs) {
     cached = { apiUrl: envApi, wsUrl: envWs };
   } else if (typeof window !== "undefined") {
-    const { protocol, host } = window.location;
+    const { protocol, hostname, port } = window.location;
     const isSecure = protocol === "https:";
+
+    // Auto-detect backend port if running on Next.js dev server port 3000
+    const targetPort = port === "3000" ? "8080" : port;
+    const targetHost = targetPort ? `${hostname}:${targetPort}` : hostname;
+
     cached = {
-      apiUrl: `${protocol}//${host}`,
-      wsUrl: `${isSecure ? "wss" : "ws"}://${host}/ws`,
+      apiUrl: `${protocol}//${targetHost}`,
+      wsUrl: `${isSecure ? "wss" : "ws"}://${targetHost}/ws`,
     };
   } else {
     // SSR fallback — don't cache empty strings so client can resolve properly after hydration
