@@ -10,12 +10,14 @@
 $ErrorActionPreference = "Stop"
 
 # --- Detect LAN IP ---
+# Prefer real Wi-Fi / Ethernet adapters; skip Hyper-V, Loopback, vEthernet, etc.
 $lanIp = (
     Get-NetIPAddress -AddressFamily IPv4 |
     Where-Object {
-        $_.InterfaceAlias -notmatch "Loopback" -and
+        $_.InterfaceAlias -notmatch "Loopback|vEthernet|Hyper-V|VPN|Docker|WSL" -and
         $_.IPAddress -notmatch "^127\." -and
         $_.IPAddress -notmatch "^169\.254\." -and
+        $_.IPAddress -notmatch "^198\.18\." -and
         $_.PrefixOrigin -ne "WellKnown"
     } |
     Sort-Object -Property InterfaceMetric |
