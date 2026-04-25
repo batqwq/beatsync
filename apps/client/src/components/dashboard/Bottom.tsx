@@ -1,5 +1,6 @@
 import { motion } from "motion/react";
 import { Player } from "../room/Player";
+import { VideoDisplay } from "../room/VideoDisplay";
 import { GlobalVolumeControl } from "./GlobalVolumeControl";
 import { NudgeControl } from "./NudgeControl";
 
@@ -11,6 +12,7 @@ export const Bottom = () => {
           <NudgeControl />
         </div>
         <div className="flex-1 max-w-3xl mx-auto">
+          <VideoDisplay />
           <Player />
         </div>
         <div className="hidden lg:block absolute right-6">

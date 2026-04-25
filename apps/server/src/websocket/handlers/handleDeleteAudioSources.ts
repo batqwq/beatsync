@@ -22,6 +22,9 @@ export const handleDeleteAudioSources: HandlerFunction<ExtractWSRequestFrom["DEL
     return; // nothing to do, silent idempotency
   }
 
+  // Snapshot source map before deletion for videoUrl lookup
+  const sourceByUrl = new Map(room.getAudioSources().map((s) => [s.url, s]));
+
   // In demo mode, skip R2 deletion — just remove from room state
   if (IS_DEMO_MODE) {
     const { updated } = room.removeAudioSources(urlsToDelete);
@@ -79,6 +82,22 @@ export const handleDeleteAudioSources: HandlerFunction<ExtractWSRequestFrom["DEL
 
   // Remove only the successfully deleted sources from room state
   const { updated } = room.removeAudioSources(urlsToRemove);
+
+  // Best-effort: delete associated video files from R2
+  for (const url of urlsToRemove) {
+    const source = sourceByUrl.get(url);
+    if (!source?.videoUrl) continue;
+    const videoUrl = source.videoUrl;
+    try {
+      const key = extractKeyFromUrl(videoUrl);
+      if (key) {
+        await deleteObject(key);
+        console.log(`🗑️ Deleted associated video R2 object: ${key}`);
+      }
+    } catch (error) {
+      console.warn(`Failed to delete video R2 object for ${videoUrl}:`, error);
+    }
+  }
 
   // Broadcast updated queue to all clients
   sendBroadcast({

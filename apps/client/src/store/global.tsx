@@ -131,6 +131,7 @@ interface GlobalStateValues {
 
   // Shuffle state
   isShuffled: boolean;
+  isLooping: boolean;
   reconnectionInfo: {
     isReconnecting: boolean;
     currentAttempt: number;
@@ -197,6 +198,7 @@ interface GlobalState extends GlobalStateValues {
   pauseAudio: (data: { when: number }) => void;
   getCurrentTrackPosition: () => number;
   toggleShuffle: () => void;
+  toggleLoop: () => void;
   skipToNextTrack: (isAutoplay?: boolean) => void;
   skipToPreviousTrack: () => void;
   getCurrentGainValue: () => number;
@@ -250,6 +252,7 @@ const initialState: GlobalStateValues = {
 
   // Spatial audio
   isShuffled: false,
+  isLooping: true,
   isSpatialAudioEnabled: false,
   isDraggingListeningSource: false,
   listeningSourcePosition: { x: GRID.SIZE / 2, y: GRID.SIZE / 2 },
@@ -1295,11 +1298,21 @@ export const useGlobalStore = create<GlobalState>((set, get) => {
     skipToNextTrack: (isAutoplay = false) => {
       // Accept optional isAutoplay flag
       const state = get();
-      const { audioSources: audioSources, selectedAudioUrl: selectedAudioId, isShuffled } = state;
-      if (audioSources.length <= 1) return; // Can't skip if only one track
+      const { audioSources: audioSources, selectedAudioUrl: selectedAudioId, isShuffled, isLooping } = state;
+
+      // Single-track loop: replay from start
+      if (audioSources.length <= 1) {
+        if (isAutoplay && isLooping) {
+          state.broadcastPlay(0);
+        }
+        return;
+      }
 
       const currentIndex = state.findAudioIndexByUrl(selectedAudioId);
       if (currentIndex === null) return;
+
+      // When looping is off, don't auto-advance past the last track
+      if (isAutoplay && !isLooping && currentIndex === audioSources.length - 1) return;
 
       let nextIndex: number;
       if (isShuffled) {
@@ -1358,6 +1371,7 @@ export const useGlobalStore = create<GlobalState>((set, get) => {
     },
 
     toggleShuffle: () => set((state) => ({ isShuffled: !state.isShuffled })),
+    toggleLoop: () => set((state) => ({ isLooping: !state.isLooping })),
 
     setIsSpatialAudioEnabled: (isEnabled) => set({ isSpatialAudioEnabled: isEnabled }),
 

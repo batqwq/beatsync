@@ -446,6 +446,7 @@ export class RoomManager {
 
   removeAudioSources(urls: string[]): {
     updated: AudioSourceType[];
+    removed: AudioSourceType[];
     removedCurrent: boolean;
     removedUrl?: string;
   } {
@@ -457,6 +458,7 @@ export class RoomManager {
 
     const removedUrl = removingCurrent ? this.playbackState.audioSource : undefined;
 
+    const removed = this.audioSources.filter((s) => urlSet.has(s.url));
     this.audioSources = this.audioSources.filter((s) => !urlSet.has(s.url));
 
     // Reset playback state if we removed the currently playing track
@@ -471,6 +473,7 @@ export class RoomManager {
     }
     return {
       updated: this.audioSources,
+      removed,
       removedCurrent: removingCurrent,
       removedUrl,
     };

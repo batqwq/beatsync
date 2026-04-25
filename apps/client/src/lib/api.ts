@@ -30,9 +30,9 @@ export const uploadAudioFile = async (data: { file: File; roomId: string }) => {
       uploadUrlRequest
     );
 
-    const { uploadUrl, publicUrl } = presignedURLResponse.data;
+    const { uploadUrl, publicUrl, videoUrl } = presignedURLResponse.data;
 
-    // Step 2: Upload directly to R2 using presigned URL
+    // Step 2: Upload directly to R2 (or local server) using presigned URL
     const uploadResponse = await fetch(uploadUrl, {
       method: "PUT",
       body: data.file,
@@ -50,6 +50,7 @@ export const uploadAudioFile = async (data: { file: File; roomId: string }) => {
       roomId: data.roomId,
       originalName: data.file.name,
       publicUrl,
+      ...(videoUrl ? { videoUrl } : {}),
     };
 
     await baseAxios.post<UploadCompleteResponseType>("/upload/complete", uploadCompleteRequest);

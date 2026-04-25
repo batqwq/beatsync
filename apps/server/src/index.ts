@@ -6,7 +6,8 @@ import { handleServeAudio } from "@/routes/demoAudio";
 import { handleDiscover } from "@/routes/discover";
 import { handleRoot } from "@/routes/root";
 import { handleStats } from "@/routes/stats";
-import { handleGetPresignedURL, handleUploadComplete } from "@/routes/upload";
+import { handleServeLocalAudio } from "@/routes/localAudio";
+import { handleGetPresignedURL, handleLocalUpload, handleUploadComplete } from "@/routes/upload";
 import { handleWebSocketUpgrade } from "@/routes/websocket";
 import { handleClose, handleMessage, handleOpen } from "@/routes/websocketHandlers";
 import { corsHeaders, errorResponse } from "@/utils/responses";
@@ -28,6 +29,28 @@ const server = Bun.serve<WSData>({
       // Demo mode: serve local audio files
       if (IS_DEMO_MODE && url.pathname.startsWith("/audio/")) {
         return handleServeAudio(url.pathname);
+      }
+
+      // Local upload PUT handler: /upload/local/room-{roomId}/{filename}
+      if (url.pathname.startsWith("/upload/local/")) {
+        const parts = url.pathname.slice("/upload/local/".length).split("/");
+        if (parts.length >= 2) {
+          const roomPath = parts[0]; // e.g. "room-abc123"
+          const roomId = roomPath.replace(/^room-/, "");
+          const fileName = parts.slice(1).join("/");
+          return handleLocalUpload(req, roomId, fileName);
+        }
+      }
+
+      // Local audio serving: /local-audio/room-{roomId}/{filename}
+      if (url.pathname.startsWith("/local-audio/")) {
+        const rest = url.pathname.slice("/local-audio/".length);
+        const slashIdx = rest.indexOf("/");
+        if (slashIdx !== -1) {
+          const roomPath = rest.slice(0, slashIdx);
+          const fileName = rest.slice(slashIdx + 1);
+          return handleServeLocalAudio(req, roomPath, fileName);
+        }
       }
 
       switch (url.pathname) {

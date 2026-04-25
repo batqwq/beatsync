@@ -238,6 +238,9 @@ export const QueueSortableItem = ({
             )}
           >
             {extractFileNameFromUrl(sourceState.source.url)}
+            {sourceState.source.videoUrl && (
+              <span className="ml-2 text-xs font-medium text-sky-400 bg-sky-400/10 px-1.5 py-0.5 rounded">video</span>
+            )}
             {isError && sourceState.error && <span className="text-xs text-red-400 ml-2">({sourceState.error})</span>}
           </div>
         </div>
