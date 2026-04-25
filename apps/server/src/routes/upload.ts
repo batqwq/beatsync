@@ -8,8 +8,10 @@ import {
   getPublicAudioUrl,
   validateR2Config,
 } from "@/lib/r2";
+import { getLocalUploadUrl, getLocalPublicAudioUrl, ensureLocalUploadDir } from "@/lib/local";
 import { globalManager } from "@/managers";
 import { errorResponse, jsonResponse, sendBroadcast } from "@/utils/responses";
+import { resolve } from "path";
 
 // New endpoint to get presigned upload URL
 export const handleGetPresignedURL = async (req: Request) => {
@@ -18,11 +20,15 @@ export const handleGetPresignedURL = async (req: Request) => {
       return errorResponse("Method not allowed", 405);
     }
 
-    // Validate R2 configuration first
-    const r2Validation = validateR2Config();
-    if (!r2Validation.isValid) {
-      console.error("R2 configuration errors:", r2Validation.errors);
-      return errorResponse("R2 configuration not complete", 500);
+    const isLocal = process.env.STORAGE_PROVIDER === "local";
+
+    // Validate R2 configuration first if not local
+    if (!isLocal) {
+      const r2Validation = validateR2Config();
+      if (!r2Validation.isValid) {
+        console.error("R2 configuration errors:", r2Validation.errors);
+        return errorResponse("R2 configuration not complete", 500);
+      }
     }
 
     const body: unknown = await req.json();
@@ -42,13 +48,20 @@ export const handleGetPresignedURL = async (req: Request) => {
 
     // Generate unique filename
     const uniqueFileName = generateAudioFileName(fileName);
-    const r2Key = createKey(roomId, uniqueFileName);
 
-    // Generate presigned URL for upload
-    const uploadUrl = await generatePresignedUploadUrl(roomId, uniqueFileName, contentType);
-    const publicUrl = getPublicAudioUrl(roomId, uniqueFileName);
+    let uploadUrl: string;
+    let publicUrl: string;
 
-    console.log(`Generated presigned URL for upload - R2 key: (${r2Key})`);
+    if (isLocal) {
+      uploadUrl = getLocalUploadUrl(roomId, uniqueFileName);
+      publicUrl = getLocalPublicAudioUrl(roomId, uniqueFileName);
+      console.log(`Generated local URL for upload: ${uploadUrl}`);
+    } else {
+      const r2Key = createKey(roomId, uniqueFileName);
+      uploadUrl = await generatePresignedUploadUrl(roomId, uniqueFileName, contentType);
+      publicUrl = getPublicAudioUrl(roomId, uniqueFileName);
+      console.log(`Generated presigned URL for upload - R2 key: (${r2Key})`);
+    }
 
     const response: UploadUrlResponseType = {
       uploadUrl,
@@ -59,6 +72,36 @@ export const handleGetPresignedURL = async (req: Request) => {
   } catch (error) {
     console.error("Error generating upload URL:", error);
     return errorResponse("Failed to generate upload URL", 500);
+  }
+};
+
+export const handleLocalUpload = async (req: Request) => {
+  try {
+    if (req.method !== "PUT") {
+      return errorResponse("Method not allowed", 405);
+    }
+
+    const url = new URL(req.url);
+    const roomId = url.searchParams.get("roomId");
+    const fileName = url.searchParams.get("fileName");
+
+    if (!roomId || !fileName) {
+      return errorResponse("Missing roomId or fileName", 400);
+    }
+
+    // Ensure the room directory exists
+    const roomDir = await ensureLocalUploadDir(roomId);
+    const filePath = resolve(roomDir, decodeURIComponent(fileName));
+
+    // Save the body as a file
+    const arrayBuffer = await req.arrayBuffer();
+    await Bun.write(filePath, arrayBuffer);
+
+    return jsonResponse({ success: true });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("Error during local file upload:", errorMsg);
+    return errorResponse(`Failed to upload local file: ${errorMsg}`, 500);
   }
 };
 

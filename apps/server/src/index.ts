@@ -3,10 +3,11 @@ import { BackupManager } from "@/managers/BackupManager";
 import { getActiveRooms } from "@/routes/active";
 import { handleGetDefaultAudio } from "@/routes/default";
 import { handleServeAudio } from "@/routes/demoAudio";
+import { handleServeLocalAudio } from "@/routes/localAudio";
 import { handleDiscover } from "@/routes/discover";
 import { handleRoot } from "@/routes/root";
 import { handleStats } from "@/routes/stats";
-import { handleGetPresignedURL, handleUploadComplete } from "@/routes/upload";
+import { handleGetPresignedURL, handleUploadComplete, handleLocalUpload } from "@/routes/upload";
 import { handleWebSocketUpgrade } from "@/routes/websocket";
 import { handleClose, handleMessage, handleOpen } from "@/routes/websocketHandlers";
 import { corsHeaders, errorResponse } from "@/utils/responses";
@@ -26,8 +27,12 @@ const server = Bun.serve<WSData>({
 
     try {
       // Demo mode: serve local audio files
-      if (IS_DEMO_MODE && url.pathname.startsWith("/audio/")) {
+      if (IS_DEMO_MODE && url.pathname.startsWith("/audio/") && !url.pathname.startsWith("/audio/local/")) {
         return handleServeAudio(url.pathname);
+      }
+
+      if (url.pathname.startsWith("/audio/local/")) {
+        return handleServeLocalAudio(url.pathname);
       }
 
       switch (url.pathname) {
@@ -40,6 +45,10 @@ const server = Bun.serve<WSData>({
         case "/upload/get-presigned-url":
           if (IS_DEMO_MODE) return errorResponse("Uploads disabled in demo mode", 403);
           return handleGetPresignedURL(req);
+
+        case "/upload/local":
+          if (IS_DEMO_MODE) return errorResponse("Uploads disabled in demo mode", 403);
+          return handleLocalUpload(req);
 
         case "/upload/complete":
           if (IS_DEMO_MODE) return errorResponse("Uploads disabled in demo mode", 403);

@@ -30,7 +30,10 @@ export const uploadAudioFile = async (data: { file: File; roomId: string }) => {
       uploadUrlRequest
     );
 
-    const { uploadUrl, publicUrl } = presignedURLResponse.data;
+    const { uploadUrl: rawUploadUrl, publicUrl: rawPublicUrl } = presignedURLResponse.data;
+
+    const uploadUrl = rawUploadUrl.startsWith("/") ? `${getApiUrl()}${rawUploadUrl}` : rawUploadUrl;
+    const publicUrl = rawPublicUrl.startsWith("/") ? `${getApiUrl()}${rawPublicUrl}` : rawPublicUrl;
 
     // Step 2: Upload directly to R2 using presigned URL
     const uploadResponse = await fetch(uploadUrl, {
@@ -60,7 +63,9 @@ export const uploadAudioFile = async (data: { file: File; roomId: string }) => {
     };
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(error.response?.data?.message || "Failed to upload audio file");
+      const data = error.response?.data;
+      const message = typeof data === "string" ? data : data?.message;
+      throw new Error(message || "Failed to upload audio file");
     }
     throw error;
   }

@@ -54,7 +54,13 @@ export const getUserLocation = async (): Promise<z.infer<typeof LocationSchema>>
   }
 
   if (!bestResponse) {
-    throw new Error("All IP location services failed");
+    console.warn("All IP location services failed, falling back to local network defaults");
+    bestResponse = {
+      city: "Local",
+      country: "Network",
+      region: "Local",
+      countryCode: "UN",
+    };
   }
 
   const location = toLocation(bestResponse);

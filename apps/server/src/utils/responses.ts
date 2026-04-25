@@ -16,9 +16,12 @@ export const jsonResponse = (data: unknown, status = 200) =>
   });
 
 export const errorResponse = (message: string, status = 400) =>
-  new Response(message, {
+  new Response(JSON.stringify({ message }), {
     status,
-    headers: corsHeaders,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+    },
   });
 
 // Broadcast to all clients in the room
