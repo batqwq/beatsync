@@ -96,13 +96,18 @@ function getExtension(name: string): string {
  */
 function findFfmpeg(): string {
   const { existsSync } = require("fs");
+  const os = require("os");
+
+  const localAppData = process.env.LOCALAPPDATA || resolve(os.homedir(), "AppData/Local");
+  const userProfile = process.env.USERPROFILE || os.homedir();
 
   // Absolute paths to check (winget, chocolatey, scoop)
   const absoluteCandidates = [
-    resolve(process.env.LOCALAPPDATA ?? "", "Microsoft/WinGet/Links/ffmpeg.exe"),
-    resolve(process.env.LOCALAPPDATA ?? "", "Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1-full_build/bin/ffmpeg.exe"),
+    resolve(localAppData, "Microsoft/WinGet/Links/ffmpeg.exe"),
+    resolve(localAppData, "Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1-full_build/bin/ffmpeg.exe"),
+    "C:/Users/13086/AppData/Local/Microsoft/WinGet/Links/ffmpeg.exe", // Hardcoded fallback for your specific machine
     "C:/ProgramData/chocolatey/bin/ffmpeg.exe",
-    resolve(process.env.USERPROFILE ?? "", "scoop/shims/ffmpeg.exe"),
+    resolve(userProfile, "scoop/shims/ffmpeg.exe"),
     "C:/ffmpeg/bin/ffmpeg.exe",
   ];
 
