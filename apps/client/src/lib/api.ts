@@ -30,13 +30,14 @@ export const uploadAudioFile = async (data: { file: File; roomId: string }) => {
       uploadUrlRequest
     );
 
-    const { uploadUrl: rawUploadUrl, publicUrl: rawPublicUrl } = presignedURLResponse.data;
+    const { uploadUrl: rawUploadUrl, publicUrl: rawPublicUrl, videoUrl: rawVideoUrl } = presignedURLResponse.data;
 
     const uploadUrl = rawUploadUrl.startsWith("/") ? `${getApiUrl()}${rawUploadUrl}` : rawUploadUrl;
-    // Keep publicUrl as-is (relative path for local storage) so every device
+    // Keep publicUrl/videoUrl as-is (relative path for local storage) so every device
     // resolves it against its own server address — prevents localhost leaking
     // into URLs shared across the room.
     const publicUrl = rawPublicUrl;
+    const videoUrl = rawVideoUrl;
 
     // Step 2: Upload directly to R2 using presigned URL
     const uploadResponse = await fetch(uploadUrl, {
@@ -56,6 +57,7 @@ export const uploadAudioFile = async (data: { file: File; roomId: string }) => {
       roomId: data.roomId,
       originalName: data.file.name,
       publicUrl,
+      ...(videoUrl ? { videoUrl } : {}),
     };
 
     await baseAxios.post<UploadCompleteResponseType>("/upload/complete", uploadCompleteRequest);

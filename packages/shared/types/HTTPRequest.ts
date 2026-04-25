@@ -27,6 +27,7 @@ export type GetUploadUrlType = z.infer<typeof GetUploadUrlSchema>;
 export const UploadUrlResponseSchema = z.object({
   uploadUrl: z.string(),
   publicUrl: z.string(),
+  videoUrl: z.string().optional(),
 });
 export type UploadUrlResponseType = z.infer<typeof UploadUrlResponseSchema>;
 
@@ -35,6 +36,7 @@ export const UploadCompleteSchema = z.object({
   roomId: z.string(),
   originalName: z.string(),
   publicUrl: z.string(),
+  videoUrl: z.string().optional(),
 });
 export type UploadCompleteType = z.infer<typeof UploadCompleteSchema>;
 

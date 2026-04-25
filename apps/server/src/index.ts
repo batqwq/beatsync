@@ -32,7 +32,7 @@ const server = Bun.serve<WSData>({
       }
 
       if (url.pathname.startsWith("/audio/local/")) {
-        return handleServeLocalAudio(url.pathname);
+        return handleServeLocalAudio(req, url.pathname);
       }
 
       switch (url.pathname) {

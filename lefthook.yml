@@ -4,7 +4,7 @@ pre-commit:
     client-check:
       root: "apps/client/"
       glob: "*.{ts,tsx,json}"
-      run: bun run format && bun run lint:fix && git add {staged_files}
+      run: ../../node_modules/.bin/prettier --write {staged_files} && ../../node_modules/.bin/eslint --fix {staged_files} && git add {staged_files}
     client-typecheck:
       root: "apps/client/"
       glob: "*.{ts,tsx}"
@@ -12,7 +12,7 @@ pre-commit:
     server-check:
       root: "apps/server/"
       glob: "*.{ts,tsx,json}"
-      run: bun run format && bun run lint:fix && git add {staged_files}
+      run: ../../node_modules/.bin/prettier --write {staged_files} && ../../node_modules/.bin/eslint --fix {staged_files} && git add {staged_files}
     server-typecheck:
       root: "apps/server/"
       glob: "*.{ts,tsx}"

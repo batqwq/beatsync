@@ -6,6 +6,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   AlertCircle,
+  Film,
   GripVertical,
   Loader2,
   MinusIcon,
@@ -231,12 +232,13 @@ export const QueueSortableItem = ({
         <div className="flex-grow min-w-0 ml-3 select-none">
           <div
             className={cn(
-              "font-medium text-sm truncate select-none",
+              "font-medium text-sm truncate select-none flex items-center gap-1",
               isSelected && !isLoading ? "text-primary-400" : "",
               isError && "text-red-400",
               isLoading && "opacity-60"
             )}
           >
+            {sourceState.source.videoUrl && <Film className="size-3 flex-shrink-0 opacity-60" />}
             {extractFileNameFromUrl(sourceState.source.url)}
             {isError && sourceState.error && <span className="text-xs text-red-400 ml-2">({sourceState.error})</span>}
           </div>

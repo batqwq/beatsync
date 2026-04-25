@@ -14,8 +14,8 @@
     "demo:log": "rm -f ../../logs/client.log && next start 2>&1 | tee ../../logs/client.log",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "typecheck": "tsc --noEmit",
-    "format": "prettier --write src/",
+    "typecheck": "bunx tsc --noEmit",
+    "format": "bunx prettier --write src/",
     "format:check": "prettier --check src/",
     "test": "bun test"
   },

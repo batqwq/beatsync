@@ -41,6 +41,14 @@ export const handleDeleteAudioSources: HandlerFunction<ExtractWSRequestFrom["DEL
   const successfullyDeletedUrls = new Set<string>();
   const roomPrefix = `/room-${ws.data.roomId}/`;
 
+  // Build a map of audio URL -> videoUrl for sources being deleted
+  const videoUrlMap = new Map<string, string>();
+  for (const source of room.getAudioSources()) {
+    if (source.videoUrl && urlsToDelete.includes(source.url)) {
+      videoUrlMap.set(source.url, source.videoUrl);
+    }
+  }
+
   const deletionPromises = urlsToDelete.map(async (url) => {
     // If it's a default track or not from this room, just remove from state
     if (!url.includes(roomPrefix)) {
@@ -52,6 +60,16 @@ export const handleDeleteAudioSources: HandlerFunction<ExtractWSRequestFrom["DEL
       if (isLocal || url.includes("/audio/local/")) {
         await deleteLocalAudioFile(url);
         console.log(`🗑️ Deleted local object: ${url}`);
+        // Also delete the original video file if one exists
+        const videoUrl = videoUrlMap.get(url);
+        if (videoUrl) {
+          try {
+            await deleteLocalAudioFile(videoUrl);
+            console.log(`🗑️ Deleted original video: ${videoUrl}`);
+          } catch {
+            console.warn(`Failed to delete video file: ${videoUrl}`);
+          }
+        }
         successfullyDeletedUrls.add(url);
       } else {
         const key = extractKeyFromUrl(url);

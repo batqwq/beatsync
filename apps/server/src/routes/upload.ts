@@ -11,6 +11,8 @@ import {
 import { getLocalUploadUrl, getLocalPublicAudioUrl, ensureLocalUploadDir } from "@/lib/local";
 import { globalManager } from "@/managers";
 import { errorResponse, jsonResponse, sendBroadcast } from "@/utils/responses";
+import { existsSync } from "fs";
+import { homedir } from "os";
 import { resolve } from "path";
 
 // New endpoint to get presigned upload URL
@@ -55,12 +57,20 @@ export const handleGetPresignedURL = async (req: Request) => {
     let uploadUrl: string;
     let publicUrl: string;
 
+    let videoUrl: string | undefined;
+
     if (isLocal) {
       // uploadUrl uses the original filename (server receives the video as-is, then converts)
       uploadUrl = getLocalUploadUrl(roomId, uniqueFileName);
       // publicUrl uses the converted filename so clients request the .wav
       publicUrl = getLocalPublicAudioUrl(roomId, publicFileName);
-      console.log(`Generated local URL for upload: ${uploadUrl}` + (isVideo ? ` (video → will serve as ${publicFileName})` : ""));
+      // videoUrl points to the original video file kept for playback
+      if (isVideo) {
+        videoUrl = getLocalPublicAudioUrl(roomId, uniqueFileName);
+      }
+      console.log(
+        `Generated local URL for upload: ${uploadUrl}` + (isVideo ? ` (video → will serve as ${publicFileName})` : "")
+      );
     } else {
       const r2Key = createKey(roomId, uniqueFileName);
       uploadUrl = await generatePresignedUploadUrl(roomId, uniqueFileName, contentType);
@@ -71,6 +81,7 @@ export const handleGetPresignedURL = async (req: Request) => {
     const response: UploadUrlResponseType = {
       uploadUrl,
       publicUrl,
+      ...(videoUrl ? { videoUrl } : {}),
     };
 
     return jsonResponse(response);
@@ -95,16 +106,16 @@ function getExtension(name: string): string {
  * then falls back to bare "ffmpeg" (requires PATH).
  */
 function findFfmpeg(): string {
-  const { existsSync } = require("fs");
-  const os = require("os");
-
-  const localAppData = process.env.LOCALAPPDATA || resolve(os.homedir(), "AppData/Local");
-  const userProfile = process.env.USERPROFILE || os.homedir();
+  const localAppData = process.env.LOCALAPPDATA ?? resolve(homedir(), "AppData/Local");
+  const userProfile = process.env.USERPROFILE ?? homedir();
 
   // Absolute paths to check (winget, chocolatey, scoop)
   const absoluteCandidates = [
     resolve(localAppData, "Microsoft/WinGet/Links/ffmpeg.exe"),
-    resolve(localAppData, "Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1-full_build/bin/ffmpeg.exe"),
+    resolve(
+      localAppData,
+      "Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-8.1-full_build/bin/ffmpeg.exe"
+    ),
     "C:/Users/13086/AppData/Local/Microsoft/WinGet/Links/ffmpeg.exe", // Hardcoded fallback for your specific machine
     "C:/ProgramData/chocolatey/bin/ffmpeg.exe",
     resolve(userProfile, "scoop/shims/ffmpeg.exe"),
@@ -125,7 +136,7 @@ function findFfmpeg(): string {
 
 let _ffmpegPath: string | null = null;
 function getFfmpegPath(): string {
-  if (!_ffmpegPath) _ffmpegPath = findFfmpeg();
+  _ffmpegPath ??= findFfmpeg();
   return _ffmpegPath;
 }
 
@@ -138,10 +149,13 @@ async function convertVideoToAudio(videoPath: string): Promise<string | null> {
   const ffmpeg = getFfmpegPath();
   console.log(`🎬→🎵 Converting video to audio: ${videoPath} → ${wavPath} (using ${ffmpeg})`);
 
-  const proc = Bun.spawn([ffmpeg, "-y", "-i", videoPath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", wavPath], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const proc = Bun.spawn(
+    [ffmpeg, "-y", "-i", videoPath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", wavPath],
+    {
+      stdout: "pipe",
+      stderr: "pipe",
+    }
+  );
 
   const exitCode = await proc.exited;
 
@@ -151,15 +165,7 @@ async function convertVideoToAudio(videoPath: string): Promise<string | null> {
     return null;
   }
 
-  // Remove the original video file
-  try {
-    const { unlink } = await import("fs/promises");
-    await unlink(videoPath);
-    console.log(`🗑️ Removed original video: ${videoPath}`);
-  } catch (e) {
-    console.warn("Failed to remove original video file:", e);
-  }
-
+  console.log(`📼 Keeping original video for playback`);
   console.log(`✅ Conversion complete: ${wavPath}`);
   return wavPath;
 }
@@ -218,7 +224,7 @@ export const handleUploadComplete = async (req: Request, server: BunServer) => {
       return errorResponse(`Invalid request data: ${parseResult.error.message}`, 400);
     }
 
-    const { roomId, publicUrl } = parseResult.data;
+    const { roomId, publicUrl, videoUrl } = parseResult.data;
 
     // Check if room exists
     const room = globalManager.getRoom(roomId);
@@ -226,7 +232,7 @@ export const handleUploadComplete = async (req: Request, server: BunServer) => {
       return errorResponse("Room not found. The room may have been closed during upload.", 404);
     }
 
-    const sources = room.addAudioSource({ url: publicUrl });
+    const sources = room.addAudioSource({ url: publicUrl, ...(videoUrl ? { videoUrl } : {}) });
 
     console.log(`✅ Audio upload completed - broadcasting to room ${roomId} new sources: ${JSON.stringify(sources)}`);
 
