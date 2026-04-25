@@ -328,43 +328,59 @@ const getSocket = (state: GlobalState) => {
 export const MAX_TRUSTWORTHY_OUTPUT_LATENCY_MS = 250;
 
 /**
- * Minimum credible output latency for desktop platforms (Windows/Linux).
- * WASAPI shared-mode on Windows typically adds 40-80 ms, but many browsers
- * report outputLatency = 0.  When we detect a desktop UA with an implausibly
- * low value we substitute this floor so auto-compensation still kicks in.
- */
-const DESKTOP_OUTPUT_LATENCY_FLOOR_MS = 50;
-
-const isDesktopPlatform = (): boolean => {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  return /Windows|Linux|Macintosh/.test(ua) && !/Android/.test(ua);
-};
-
-/**
- * Read the browser's outputLatency, filtering out garbage values (e.g. Bluetooth reporting 648ms).
- * Wired speakers (~24ms) are trustworthy. Bluetooth users should use manual nudge.
- * On desktop platforms where the browser under-reports (0 ms), fall back to a
- * sensible floor so that auto-compensation still works out of the box.
+ * Read the browser's outputLatency (best-effort).
+ * Used ONLY for reporting to the server so it can schedule enough headroom.
+ * NOT used for local scheduling — that uses getOutputTimestamp() mapping instead.
  */
 export const getFilteredOutputLatencyMs = (): number => {
   const rawMs = (audioContextManager.getContext().outputLatency ?? 0) * 1000;
   if (rawMs > MAX_TRUSTWORTHY_OUTPUT_LATENCY_MS) {
-    console.warn(`[OutputLatency] ignoring ${rawMs.toFixed(0)}ms (likely Bluetooth garbage — use nudge)`);
     return 0;
-  }
-  // Desktop browsers often report 0; use a platform-specific floor
-  if (rawMs < 5 && isDesktopPlatform()) {
-    return DESKTOP_OUTPUT_LATENCY_FLOOR_MS;
   }
   return rawMs;
 };
 
+/**
+ * Measure the actual output pipeline latency via getOutputTimestamp().
+ * This is far more reliable than AudioContext.outputLatency (which is often 0
+ * on Windows). Used for server-side headroom reporting.
+ */
+export const getMeasuredOutputLatencyMs = (): number => {
+  const ctx = audioContextManager.getContext();
+  const ts = ctx.getOutputTimestamp();
+  if (!ts.contextTime || ts.contextTime === 0) {
+    // getOutputTimestamp not supported or context just started — fall back
+    return getFilteredOutputLatencyMs();
+  }
+  // currentTime is the *input* side of the pipeline (what's being processed now)
+  // contextTime is the *output* side (what's leaving the speakers now)
+  // The difference is the pipeline latency.
+  const measuredMs = Math.max(0, (ctx.currentTime - ts.contextTime) * 1000);
+  // Sanity-clamp to avoid garbage values
+  return measuredMs > MAX_TRUSTWORTHY_OUTPUT_LATENCY_MS ? 0 : measuredMs;
+};
+
+/**
+ * Calculate how many AudioContext seconds to wait before starting playback.
+ *
+ * Instead of the old approach (wall-clock wait − guessed outputLatency),
+ * we use getOutputTimestamp() to map the target wall-clock instant directly
+ * into the AudioContext time domain. This mapping *inherently* accounts for
+ * the entire audio pipeline delay (DAC, OS mixer, driver buffers) — no
+ * manual calibration or platform-specific hacks required.
+ */
 const getWaitTimeSeconds = (state: GlobalState, targetServerTime: number) => {
   const effectiveOffset = state.offsetEstimate + state.nudgeOffsetMs;
   const waitTimeMilliseconds = calculateWaitTimeMilliseconds(targetServerTime, effectiveOffset);
-  const outputLatencyMs = getFilteredOutputLatencyMs();
-  return Math.max(0, (waitTimeMilliseconds - outputLatencyMs) / 1000);
+
+  // Target wall-clock instant when audio should reach speakers
+  const targetPerfTimeMs = performance.now() + waitTimeMilliseconds;
+
+  // Map to AudioContext time — automatically includes pipeline latency
+  const targetAudioTime = audioContextManager.perfTimeToAudioTime(targetPerfTimeMs);
+  const currentAudioTime = audioContextManager.getContext().currentTime;
+
+  return Math.max(0, targetAudioTime - currentAudioTime);
 };
 
 const resolveAudioUrl = (url: string): string => (url.startsWith("/") ? `${getApiUrl()}${url}` : url);
@@ -774,11 +790,11 @@ export const useGlobalStore = create<GlobalState>((set, get) => {
       // await new Promise((resolve) => setTimeout(resolve, 500));
 
       let waitTimeSeconds = getWaitTimeSeconds(state, data.targetServerTime);
-      const _olMs = getFilteredOutputLatencyMs();
+      const _measuredOL = getMeasuredOutputLatencyMs();
       const _effectiveOffset = state.offsetEstimate + state.nudgeOffsetMs;
       const _rawWaitMs = calculateWaitTimeMilliseconds(data.targetServerTime, _effectiveOffset);
       console.log(
-        `[Schedule] wait=${waitTimeSeconds.toFixed(3)}s = max(0, (${_rawWaitMs.toFixed(1)}ms - ${_olMs.toFixed(1)}ms OL) / 1000) | offset=${state.offsetEstimate.toFixed(1)}ms nudge=${state.nudgeOffsetMs}ms`
+        `[Schedule] wait=${waitTimeSeconds.toFixed(3)}s (via getOutputTimestamp) | rawWait=${_rawWaitMs.toFixed(1)}ms measuredOL=${_measuredOL.toFixed(1)}ms | offset=${state.offsetEstimate.toFixed(1)}ms nudge=${state.nudgeOffsetMs}ms`
       );
 
       // Check if the scheduled time has already passed
@@ -1036,8 +1052,9 @@ export const useGlobalStore = create<GlobalState>((set, get) => {
         console.warn("Latency is very high (>750ms). Sync may be unstable.");
       }
 
-      // Compute total local compensation (outputLatency + nudge) to report to server
-      const totalCompensationMs = getFilteredOutputLatencyMs() + state.nudgeOffsetMs;
+      // Report measured pipeline latency + nudge to server for scheduling headroom
+      const measuredOL = getMeasuredOutputLatencyMs();
+      const totalCompensationMs = measuredOL + state.nudgeOffsetMs;
 
       sendProbePairWS({
         ws: socket,
