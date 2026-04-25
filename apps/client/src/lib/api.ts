@@ -33,7 +33,10 @@ export const uploadAudioFile = async (data: { file: File; roomId: string }) => {
     const { uploadUrl: rawUploadUrl, publicUrl: rawPublicUrl } = presignedURLResponse.data;
 
     const uploadUrl = rawUploadUrl.startsWith("/") ? `${getApiUrl()}${rawUploadUrl}` : rawUploadUrl;
-    const publicUrl = rawPublicUrl.startsWith("/") ? `${getApiUrl()}${rawPublicUrl}` : rawPublicUrl;
+    // Keep publicUrl as-is (relative path for local storage) so every device
+    // resolves it against its own server address — prevents localhost leaking
+    // into URLs shared across the room.
+    const publicUrl = rawPublicUrl;
 
     // Step 2: Upload directly to R2 using presigned URL
     const uploadResponse = await fetch(uploadUrl, {
@@ -73,8 +76,9 @@ export const uploadAudioFile = async (data: { file: File; roomId: string }) => {
 
 export const fetchAudio = async (url: string) => {
   try {
-    // Direct fetch from R2 public URL - zero server bandwidth
-    const response = await fetch(url);
+    // Resolve relative URLs (local storage) against the API server
+    const resolvedUrl = url.startsWith("/") ? `${getApiUrl()}${url}` : url;
+    const response = await fetch(resolvedUrl);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch audio: ${response.statusText}`);
