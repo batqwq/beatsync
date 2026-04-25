@@ -71,9 +71,9 @@ export const AudioUploaderMinimal = () => {
 
     const file = event.dataTransfer?.files?.[0];
     if (!file) return;
-    // make sure we only allow audio files
-    if (!file.type.startsWith("audio/")) {
-      toast.error("Please select an audio file");
+    // Allow audio and video files (video will be converted to audio on server)
+    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+      toast.error("Please select an audio or video file");
       return;
     }
 
@@ -110,7 +110,7 @@ export const AudioUploaderMinimal = () => {
             </div>
             {!isUploading && !fileName && (
               <div className={cn("text-xs truncate", isDisabled ? "text-neutral-500" : "text-neutral-400")}>
-                {isDisabled ? "Must be an admin to upload" : "Add music to queue"}
+                {isDisabled ? "Must be an admin to upload" : "Add music or video"}
               </div>
             )}
           </div>
@@ -120,7 +120,7 @@ export const AudioUploaderMinimal = () => {
       <input
         id="audio-upload"
         type="file"
-        accept="audio/mpeg,audio/mp3,audio/wav,audio/aac,audio/ogg,audio/webm,audio/flac,.mp3,.wav,.m4a,.aac,.ogg,.webm,.flac"
+        accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.webm,.flac,.mp4,.mkv,.avi,.mov"
         onChange={onInputChange}
         disabled={isUploading || isDisabled}
         className="hidden"

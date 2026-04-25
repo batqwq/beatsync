@@ -48,18 +48,23 @@ export const handleGetPresignedURL = async (req: Request) => {
 
     // Generate unique filename
     const uniqueFileName = generateAudioFileName(fileName);
+    // For video files, the public URL should point to the converted .wav
+    const isVideo = contentType.startsWith("video/");
+    const publicFileName = isVideo ? uniqueFileName.replace(/\.[^.]+$/, ".wav") : uniqueFileName;
 
     let uploadUrl: string;
     let publicUrl: string;
 
     if (isLocal) {
+      // uploadUrl uses the original filename (server receives the video as-is, then converts)
       uploadUrl = getLocalUploadUrl(roomId, uniqueFileName);
-      publicUrl = getLocalPublicAudioUrl(roomId, uniqueFileName);
-      console.log(`Generated local URL for upload: ${uploadUrl}`);
+      // publicUrl uses the converted filename so clients request the .wav
+      publicUrl = getLocalPublicAudioUrl(roomId, publicFileName);
+      console.log(`Generated local URL for upload: ${uploadUrl}` + (isVideo ? ` (video → will serve as ${publicFileName})` : ""));
     } else {
       const r2Key = createKey(roomId, uniqueFileName);
       uploadUrl = await generatePresignedUploadUrl(roomId, uniqueFileName, contentType);
-      publicUrl = getPublicAudioUrl(roomId, uniqueFileName);
+      publicUrl = getPublicAudioUrl(roomId, publicFileName);
       console.log(`Generated presigned URL for upload - R2 key: (${r2Key})`);
     }
 
@@ -74,6 +79,50 @@ export const handleGetPresignedURL = async (req: Request) => {
     return errorResponse("Failed to generate upload URL", 500);
   }
 };
+
+/**
+ * Video extensions that should be auto-converted to audio via ffmpeg.
+ */
+const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv", ".m4v", ".ts", ".3gp"]);
+
+function getExtension(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 ? name.slice(dot).toLowerCase() : "";
+}
+
+/**
+ * Convert a video file to WAV audio using ffmpeg.
+ * Returns the path of the new .wav file on success, or null on failure.
+ */
+async function convertVideoToAudio(videoPath: string): Promise<string | null> {
+  const wavPath = videoPath.replace(/\.[^.]+$/, ".wav");
+  console.log(`🎬→🎵 Converting video to audio: ${videoPath} → ${wavPath}`);
+
+  const proc = Bun.spawn(["ffmpeg", "-y", "-i", videoPath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", wavPath], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  const exitCode = await proc.exited;
+
+  if (exitCode !== 0) {
+    const stderr = await new Response(proc.stderr).text();
+    console.error(`❌ ffmpeg conversion failed (exit ${exitCode}):`, stderr);
+    return null;
+  }
+
+  // Remove the original video file
+  try {
+    const { unlink } = await import("fs/promises");
+    await unlink(videoPath);
+    console.log(`🗑️ Removed original video: ${videoPath}`);
+  } catch (e) {
+    console.warn("Failed to remove original video file:", e);
+  }
+
+  console.log(`✅ Conversion complete: ${wavPath}`);
+  return wavPath;
+}
 
 export const handleLocalUpload = async (req: Request) => {
   try {
@@ -91,11 +140,21 @@ export const handleLocalUpload = async (req: Request) => {
 
     // Ensure the room directory exists
     const roomDir = await ensureLocalUploadDir(roomId);
-    const filePath = resolve(roomDir, decodeURIComponent(fileName));
+    const decodedFileName = decodeURIComponent(fileName);
+    const filePath = resolve(roomDir, decodedFileName);
 
     // Save the body as a file
     const arrayBuffer = await req.arrayBuffer();
     await Bun.write(filePath, arrayBuffer);
+
+    // Auto-convert video to audio
+    const ext = getExtension(decodedFileName);
+    if (VIDEO_EXTENSIONS.has(ext)) {
+      const wavPath = await convertVideoToAudio(filePath);
+      if (!wavPath) {
+        return errorResponse("Video to audio conversion failed. Is ffmpeg installed?", 500);
+      }
+    }
 
     return jsonResponse({ success: true });
   } catch (error) {

@@ -17,8 +17,8 @@ export const GetUploadUrlSchema = z.object({
   contentType: z
     .string()
     .refine(
-      (type) => type.startsWith("audio/") || type === "video/webm",
-      "Content type must be an audio mime type or video/webm"
+      (type) => type.startsWith("audio/") || type.startsWith("video/"),
+      "Content type must be an audio or video mime type"
     ),
 });
 export type GetUploadUrlType = z.infer<typeof GetUploadUrlSchema>;
